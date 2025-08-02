@@ -3,9 +3,11 @@ import { z } from 'zod';
 
 // Zod schema for User validation
 export const UserZodSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Name cannot be more than 100 characters').trim(),
   email: z.string().email('Please enter a valid email').toLowerCase().trim(),
-  age: z.number().min(0, 'Age cannot be negative').max(150, 'Age cannot be more than 150').optional(),
+  passwordHash: z.string().min(1, 'Password hash is required'),
+  name: z.string().min(1, 'Name is required').max(100, 'Name cannot be more than 100 characters').trim().optional(),
+  avatarUrl: z.string().url('Invalid URL format').optional(),
+  role: z.enum(['user', 'admin']).default('user').optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -15,12 +17,6 @@ export type IUser = z.infer<typeof UserZodSchema>;
 
 const UserSchema: Schema<IUser> = new Schema<IUser>(
   {
-    name: {
-      type: String,
-      required: [true, 'Name is required'],
-      trim: true,
-      maxlength: [100, 'Name cannot be more than 100 characters'],
-    },
     email: {
       type: String,
       required: [true, 'Email is required'],
@@ -29,10 +25,28 @@ const UserSchema: Schema<IUser> = new Schema<IUser>(
       trim: true,
       match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email'],
     },
-    age: {
-      type: Number,
-      min: [0, 'Age cannot be negative'],
-      max: [150, 'Age cannot be more than 150'],
+    passwordHash: {
+      type: String,
+      required: [true, 'Password hash is required'],
+    },
+    name: {
+      type: String,
+      trim: true,
+      maxlength: [100, 'Name cannot be more than 100 characters'],
+    },
+    avatarUrl: {
+      type: String,
+      validate: {
+        validator: function(url: string) {
+          return /^https?:\/\/.+/.test(url);
+        },
+        message: 'Avatar URL must be a valid HTTP/HTTPS URL',
+      },
+    },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user',
     },
   },
   {

@@ -1,6 +1,8 @@
 import { createTRPCRouter, publicProcedure } from '../trpc';
 import {
   createUserSchema,
+  registerUserSchema,
+  loginUserSchema,
   updateUserSchema,
   getUserSchema,
   deleteUserSchema,
@@ -9,11 +11,111 @@ import {
 } from '../../schemas/user';
 import User from '../../collections/User';
 import { TRPCError } from '@trpc/server';
+import bcrypt from 'bcryptjs';
+import { z } from 'zod';
 
 export const userRouter = createTRPCRouter({
-  // Create a new user
+  // Register a new user
+  register: publicProcedure
+    .meta({ description: 'Register a new user with email and password. Email must be unique.' })
+    .input(registerUserSchema)
+    .output(userOutputSchema)
+    .mutation(async ({ input }) => {
+      try {
+        // Check if user already exists
+        const existingUser = await User.findOne({ email: input.email });
+        if (existingUser) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'User with this email already exists',
+          });
+        }
+
+        // Hash password
+        const saltRounds = 12;
+        const passwordHash = await bcrypt.hash(input.password, saltRounds);
+
+        const user = new User({
+          email: input.email,
+          passwordHash,
+          name: input.name,
+          role: 'user',
+        });
+        const savedUser = await user.save();
+        return {
+          _id: savedUser._id.toString(),
+          email: savedUser.email,
+          passwordHash: savedUser.passwordHash,
+          name: savedUser.name,
+          avatarUrl: savedUser.avatarUrl,
+          role: savedUser.role,
+          createdAt: savedUser.createdAt,
+          updatedAt: savedUser.updatedAt,
+        };
+      } catch (error: unknown) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'User with this email already exists',
+          });
+        }
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to create user',
+        });
+      }
+    }),
+
+  // Login user
+  login: publicProcedure
+    .meta({ description: 'Authenticate user with email and password.' })
+    .input(loginUserSchema)
+    .output(userOutputSchema)
+    .mutation(async ({ input }) => {
+      try {
+        const user = await User.findOne({ email: input.email });
+        if (!user) {
+          throw new TRPCError({
+            code: 'UNAUTHORIZED',
+            message: 'Invalid email or password',
+          });
+        }
+
+        const isValidPassword = await bcrypt.compare(input.password, user.passwordHash);
+        if (!isValidPassword) {
+          throw new TRPCError({
+            code: 'UNAUTHORIZED',
+            message: 'Invalid email or password',
+          });
+        }
+
+        return {
+          _id: user._id.toString(),
+          email: user.email,
+          passwordHash: user.passwordHash,
+          name: user.name,
+          avatarUrl: user.avatarUrl,
+          role: user.role,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        };
+      } catch (error: unknown) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to authenticate user',
+        });
+      }
+    }),
+
+  // Create a new user (admin function)
   create: publicProcedure
-    .meta({ description: 'Create a new user with name, email, and age. Email must be unique.' })
+    .meta({ description: 'Create a new user with all fields. Admin function.' })
     .input(createUserSchema)
     .output(userOutputSchema)
     .mutation(async ({ input }) => {
@@ -22,9 +124,11 @@ export const userRouter = createTRPCRouter({
         const savedUser = await user.save();
         return {
           _id: savedUser._id.toString(),
-          name: savedUser.name,
           email: savedUser.email,
-          age: savedUser.age,
+          passwordHash: savedUser.passwordHash,
+          name: savedUser.name,
+          avatarUrl: savedUser.avatarUrl,
+          role: savedUser.role,
           createdAt: savedUser.createdAt,
           updatedAt: savedUser.updatedAt,
         };
@@ -51,9 +155,11 @@ export const userRouter = createTRPCRouter({
         const users = await User.find({}).sort({ createdAt: -1 });
         return users.map(user => ({
           _id: user._id.toString(),
-          name: user.name,
           email: user.email,
-          age: user.age,
+          passwordHash: user.passwordHash,
+          name: user.name,
+          avatarUrl: user.avatarUrl,
+          role: user.role,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
         }));
@@ -81,9 +187,11 @@ export const userRouter = createTRPCRouter({
         }
         return {
           _id: user._id.toString(),
-          name: user.name,
           email: user.email,
-          age: user.age,
+          passwordHash: user.passwordHash,
+          name: user.name,
+          avatarUrl: user.avatarUrl,
+          role: user.role,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
         };
@@ -119,9 +227,11 @@ export const userRouter = createTRPCRouter({
         }
         return {
           _id: user._id.toString(),
-          name: user.name,
           email: user.email,
-          age: user.age,
+          passwordHash: user.passwordHash,
+          name: user.name,
+          avatarUrl: user.avatarUrl,
+          role: user.role,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
         };
@@ -158,9 +268,11 @@ export const userRouter = createTRPCRouter({
         }
         return {
           _id: user._id.toString(),
-          name: user.name,
           email: user.email,
-          age: user.age,
+          passwordHash: user.passwordHash,
+          name: user.name,
+          avatarUrl: user.avatarUrl,
+          role: user.role,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
         };
